@@ -52,7 +52,9 @@ const createdUser = async (user: IUser): Promise<IUser | null> => {
 };
 
 const userLogin = async (payload: { email: string; password: string }) => {
-  const { email, password } = payload;
+  const email = payload.email.trim().toLowerCase();
+  const password = payload.password;
+
   if (!email || !password) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
@@ -60,7 +62,9 @@ const userLogin = async (payload: { email: string; password: string }) => {
       ''
     );
   }
+
   const user = await UsersModel.findOne({ email }).select('+password');
+
   if (!user) {
     throw new ApiError(
       httpStatus.NOT_FOUND,
@@ -68,14 +72,15 @@ const userLogin = async (payload: { email: string; password: string }) => {
       ''
     );
   }
+
   const isPasswordMatch = await bcrypt.compare(
     password,
     user.password as string
   );
+
   if (!isPasswordMatch) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid password', '');
   }
-
   const access_token = jwtHelpers.createToken(
     {
       id: user._id,
