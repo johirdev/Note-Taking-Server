@@ -12,11 +12,7 @@ router.post(
   TokenRoleAccess(['admin', 'user']),
   PostController.postCreate
 );
-router.get(
-  '/',
-  //  TokenRoleAccess(['admin', 'user']),
-  PostController.AllPost
-);
+router.get('/', TokenRoleAccess(['admin', 'user']), PostController.AllPost);
 
 router.patch(
   '/update/:id',

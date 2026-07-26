@@ -3,8 +3,6 @@ import { validateRequest } from '../../middlewares/validateRequest';
 import { UserValidation } from './user.validation';
 import { UserController } from './user.controller';
 import { TokenRoleAccess } from '../../middlewares/TokenRoleAccess';
-
-
 const router = express.Router();
 
 router.post('/login', UserController.login);
