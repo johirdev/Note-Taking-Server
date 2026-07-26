@@ -15,7 +15,6 @@ export const TokenRoleAccess =
   (allowedRoles: string[] = []) =>
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // 1. Check token
       const authHeader = req.headers.authorization;
 
       if (!authHeader?.startsWith('Bearer ')) {
@@ -25,10 +24,8 @@ export const TokenRoleAccess =
           ''
         );
       }
-
       const token = authHeader.split(' ')[1];
 
-      // 2. Verify token
       let decoded: DecodedToken;
 
       try {
@@ -41,11 +38,9 @@ export const TokenRoleAccess =
         );
       }
 
-      // 3. Get user
       const user = await UsersModel.findById(decoded.id).select(
         '_id email role'
       );
-
       if (!user) {
         throw new ApiError(
           httpStatus.NOT_FOUND,
@@ -53,7 +48,6 @@ export const TokenRoleAccess =
           ''
         );
       }
-
       // 4. Optional role check (admin/user control)
       if (allowedRoles.length && !allowedRoles.includes(user.role)) {
         throw new ApiError(
@@ -63,7 +57,6 @@ export const TokenRoleAccess =
         );
       }
 
-      // 5. Attach user
       req.user = {
         id: user._id.toString(),
         email: user.email,

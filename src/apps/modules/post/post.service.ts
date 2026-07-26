@@ -14,9 +14,7 @@ import { PostsModel } from './post.model';
 import { IPaginationOpton } from '../../../interfaces/pagination';
 import { IGenaricRespons } from '../../../interfaces/common';
 import { HelperPagination } from '../../../helpers/paginationHelper';
-import { SortOrder } from 'mongoose';
 
-// Create a Post business logic
 const createPost = async (post: IPost): Promise<PostDocument | null> => {
   const postToCreate = post;
 
@@ -28,7 +26,6 @@ const createPost = async (post: IPost): Promise<PostDocument | null> => {
 
   return created as PostDocument;
 };
-
 const getAllPost = async (
   filtering: Record<string, any>,
   paginationOption: IPaginationOpton
@@ -131,7 +128,6 @@ const deleteSingelPost = async (id: string): Promise<void> => {
   if (!users) {
     throw new ApiError(httpStatus.NOT_FOUND, 'post not found', '');
   }
-
   await PostsModel.findByIdAndDelete(id);
 };
 
