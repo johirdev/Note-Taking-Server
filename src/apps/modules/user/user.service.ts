@@ -297,13 +297,13 @@ const getUserNote = async (userId: string) => {
     { $match: { _id: new ObjectId(userId) } },
     {
       $lookup: {
-        from: 'note',
+        from: 'notes',
         localField: '_id',
         foreignField: 'user',
-        as: 'note',
+        as: 'notes',
       },
     },
-    { $project: { _id: 1, name: 1, email: 1, note: 1 } },
+    { $project: { _id: 1, name: 1, email: 1, notes: 1 } },
   ];
 
   const res = await UsersModel.aggregate(pipeline);

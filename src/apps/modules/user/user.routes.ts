@@ -32,25 +32,21 @@ router.patch(
   TokenRoleAccess(['admin']),
   UserController.updateSingleUser
 );
-// only user profile update
 router.patch(
   '/profile/:id',
   TokenRoleAccess(['user', 'admin']),
   UserController.updateUserProfile
 );
-// Group users by interests (admin only)
 router.get(
   '/group-by-interests',
   TokenRoleAccess(['admin']),
   UserController.groupByInterests
 );
-// Get all note for a specific user (user or admin)
 router.get(
   '/:id/notes',
   TokenRoleAccess(['user', 'admin']),
-  UserController.getUserPosts
+  UserController.getUserNote
 );
-// Get all posts for a specific user (user or admin)
 router.get(
   '/:id/posts',
   TokenRoleAccess(['user', 'admin']),
