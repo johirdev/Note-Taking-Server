@@ -128,7 +128,6 @@ const getUserPosts = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-// exported there CreateUserController
 export const UserController = {
   userCreate,
   login,

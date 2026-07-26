@@ -6,10 +6,8 @@ import { TokenRoleAccess } from '../../middlewares/TokenRoleAccess';
 
 
 const router = express.Router();
-// login user/admin
-router.post('/login', UserController.login);
 
-// only addmin can access
+router.post('/login', UserController.login);
 router.post(
   '/create',
   validateRequest(UserValidation.createUserZodSchema),

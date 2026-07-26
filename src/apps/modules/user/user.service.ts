@@ -16,7 +16,6 @@ import mongoose, { PipelineStage, SortOrder } from 'mongoose';
 const createdUser = async (user: IUser): Promise<IUser | null> => {
   const { name, email, password, role, interests } = user;
   const sanitizedEmail = email?.trim().toLowerCase();
-  // Check existing user
   if (sanitizedEmail) {
     const existingUser = await UsersModel.findOne({ email: sanitizedEmail });
 
@@ -61,7 +60,6 @@ const userLogin = async (payload: { email: string; password: string }) => {
       ''
     );
   }
-  // 2️⃣ Find user (IMPORTANT: include password)
   const user = await UsersModel.findOne({ email }).select('+password');
   if (!user) {
     throw new ApiError(
@@ -70,7 +68,6 @@ const userLogin = async (payload: { email: string; password: string }) => {
       ''
     );
   }
-  // 3️⃣ Compare password
   const isPasswordMatch = await bcrypt.compare(
     password,
     user.password as string
@@ -78,7 +75,7 @@ const userLogin = async (payload: { email: string; password: string }) => {
   if (!isPasswordMatch) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid password', '');
   }
-  // 4️⃣ Create Access Token
+
   const access_token = jwtHelpers.createToken(
     {
       id: user._id,
@@ -90,7 +87,7 @@ const userLogin = async (payload: { email: string; password: string }) => {
     config.jwt.secret as Secret,
     config.jwt.expires_in as string
   );
-  // 5️⃣ Create Refresh Token
+
   const refresh_token = jwtHelpers.createToken(
     { id: user._id },
     config.jwt.secret as Secret,
@@ -109,7 +106,6 @@ const getAllUser = async (
   const { searchTerm, start_date, end_date, ...filtersData } = filtering;
   const searchTermString = typeof searchTerm === 'string' ? searchTerm : '';
   const andConditions: Record<string, any>[] = [];
-  // Add search condition
   if (searchTermString) {
     andConditions.push({
       $or: userSearchableFields?.map(field => ({
@@ -120,7 +116,6 @@ const getAllUser = async (
       })),
     });
   }
-  // ✅ Date range filter
   if (start_date || end_date) {
     const dateFilter: Record<string, any> = {};
     if (start_date) {
@@ -189,7 +184,6 @@ export const updateUser = async (
   for (const field of allowedFields) {
     const value = user[field];
     if (value === undefined || value === null) continue;
-    // 🔐 password handling separately
     if (field === 'password') {
       const hashedPassword = await bcrypt.hash(
         value as string,
