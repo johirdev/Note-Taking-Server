@@ -11,7 +11,7 @@ router.post('/login', UserController.login);
 router.post(
   '/create',
   validateRequest(UserValidation.createUserZodSchema),
-  // TokenRoleAccess(['admin']),
+  TokenRoleAccess(['admin']),
   UserController.userCreate
 );
 router.get('/', TokenRoleAccess(['admin']), UserController.AllUser);
