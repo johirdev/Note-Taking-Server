@@ -15,6 +15,7 @@ app.use(bodyParser.json({ limit: '10mb' }));
 const allowedOrigins = [
   'http://localhost:3000',
   'http://192.168.31.103:3000',
+  'https://note-taking-app-2026.vercel.app',
 ];
 
 app.use(
