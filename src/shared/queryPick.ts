@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const queryPick = (query: any, fields: string[]) => {
   const picked: any = {};
   fields.forEach(field => {

@@ -1,0 +1,324 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import httpStatus from 'http-status';
+import { ApiError } from '../../../errors/ApiError';
+import { ISearchUser, IUser, userSearchableFields } from './user.interface';
+import { UsersModel } from './user.model';
+import bcrypt from 'bcrypt';
+import { Secret } from 'jsonwebtoken';
+import config from '../../../config';
+import { jwtHelpers } from '../../../helpers/jwtHelpers';
+
+import { IPaginationOpton } from '../../../interfaces/pagination';
+import { IGenaricRespons } from '../../../interfaces/common';
+import { HelperPagination } from '../../../helpers/paginationHelper';
+import mongoose, { PipelineStage, SortOrder } from 'mongoose';
+
+const createdUser = async (user: IUser): Promise<IUser | null> => {
+  const { name, email, password, role, interests } = user;
+  const sanitizedEmail = email?.trim().toLowerCase();
+  // Check existing user
+  if (sanitizedEmail) {
+    const existingUser = await UsersModel.findOne({ email: sanitizedEmail });
+
+    if (existingUser) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        'User already exists with this email.',
+        ''
+      );
+    }
+  }
+
+  // Hash password
+  const hashedPassword = await bcrypt.hash(
+    password,
+    Number(config.bcrypt_salt_round)
+  );
+  const userToCreate = {
+    name,
+    email: sanitizedEmail,
+    role: role || 'user',
+    interests: Array.isArray(interests)
+      ? interests
+      : interests
+      ? [interests]
+      : [],
+    password: hashedPassword,
+  };
+  const created = await UsersModel.create(userToCreate);
+  if (!created) {
+    throw new ApiError(500, 'User creation failed', '');
+  }
+  return created;
+};
+
+const userLogin = async (payload: { email: string; password: string }) => {
+  const { email, password } = payload;
+  if (!email || !password) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Email and password are required',
+      ''
+    );
+  }
+  // 2️⃣ Find user (IMPORTANT: include password)
+  const user = await UsersModel.findOne({ email }).select('+password');
+  if (!user) {
+    throw new ApiError(
+      httpStatus.NOT_FOUND,
+      'User not found with this email',
+      ''
+    );
+  }
+  // 3️⃣ Compare password
+  const isPasswordMatch = await bcrypt.compare(
+    password,
+    user.password as string
+  );
+  if (!isPasswordMatch) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid password', '');
+  }
+  // 4️⃣ Create Access Token
+  const access_token = jwtHelpers.createToken(
+    {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      interests: user.interests || [],
+    },
+    config.jwt.secret as Secret,
+    config.jwt.expires_in as string
+  );
+  // 5️⃣ Create Refresh Token
+  const refresh_token = jwtHelpers.createToken(
+    { id: user._id },
+    config.jwt.secret as Secret,
+    config.jwt.refresh_expires_in as string
+  );
+  return {
+    access_token,
+    refresh_token,
+  };
+};
+
+const getAllUser = async (
+  filtering: Record<string, any>,
+  paginationOption: IPaginationOpton
+): Promise<IGenaricRespons<ISearchUser[]> | null> => {
+  const { searchTerm, start_date, end_date, ...filtersData } = filtering;
+  const searchTermString = typeof searchTerm === 'string' ? searchTerm : '';
+  const andConditions: Record<string, any>[] = [];
+  // Add search condition
+  if (searchTermString) {
+    andConditions.push({
+      $or: userSearchableFields?.map(field => ({
+        [field]: {
+          $regex: searchTermString,
+          $options: 'i',
+        },
+      })),
+    });
+  }
+  // ✅ Date range filter
+  if (start_date || end_date) {
+    const dateFilter: Record<string, any> = {};
+    if (start_date) {
+      const startDateObj = new Date(start_date);
+      if (!isNaN(startDateObj.getTime())) {
+        dateFilter.$gte = startDateObj;
+      }
+    }
+    if (end_date) {
+      const endDateObj = new Date(end_date);
+      if (!isNaN(endDateObj.getTime())) {
+        endDateObj.setHours(23, 59, 59, 999);
+        dateFilter.$lte = endDateObj;
+      }
+    }
+    if (Object.keys(dateFilter).length > 0) {
+      andConditions.push({ createdAt: dateFilter });
+    }
+  }
+
+  const validFilters = Object.entries(filtersData).filter(
+    ([, value]) => value !== undefined && value !== null && value !== ''
+  );
+
+  if (validFilters.length) {
+    andConditions.push({
+      $and: validFilters.map(([field, value]) => ({
+        [field]: value,
+      })),
+    });
+  }
+  const { page, limit, skip, sortBy, sortOrder } =
+    HelperPagination.calculationPagination(paginationOption);
+  const sortConditions: Record<string, SortOrder> = {};
+  if (sortBy && sortOrder) {
+    sortConditions[sortBy] = sortOrder;
+  }
+
+  const whereConditions =
+    andConditions.length > 0 ? { $and: andConditions } : {};
+  const result = await UsersModel.find(whereConditions)
+    .sort(sortConditions)
+    .skip(skip)
+    .limit(limit);
+  const total = await UsersModel.countDocuments(whereConditions);
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+    },
+    data: result,
+  };
+};
+
+export const updateUser = async (
+  id: string,
+  user: Partial<IUser>
+): Promise<IUser | null> => {
+  const existingUser = await UsersModel.findById(id);
+  if (!existingUser) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found', '');
+  }
+  const allowedFields: (keyof IUser)[] = ['name', 'email', 'password', 'role'];
+  const updateData: Partial<IUser> = {};
+  for (const field of allowedFields) {
+    const value = user[field];
+    if (value === undefined || value === null) continue;
+    // 🔐 password handling separately
+    if (field === 'password') {
+      const hashedPassword = await bcrypt.hash(
+        value as string,
+        Number(config.bcrypt_salt_round)
+      );
+      updateData.password = hashedPassword;
+    } else {
+      updateData[field] = value as any;
+    }
+  }
+
+  const updatedUser = await UsersModel.findByIdAndUpdate(
+    id,
+    { $set: updateData },
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+  if (!updatedUser) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User update failed', '');
+  }
+  return updatedUser;
+};
+
+export const updateUserProfile = async (
+  id: string,
+  user: Partial<IUser>
+): Promise<IUser | null> => {
+  const existingUser = await UsersModel.findById(id);
+  if (!existingUser) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found', '');
+  }
+  const allowedFields: (keyof IUser)[] = ['name', 'email', 'interests'];
+  const updateData: Partial<IUser> = {};
+  allowedFields.forEach(field => {
+    const value = user[field];
+    if (value !== undefined && value !== null) {
+      if (field === 'interests') {
+        if (typeof value === 'string') {
+          updateData.interests = [value];
+        } else if (Array.isArray(value)) {
+          updateData.interests = value;
+        }
+      } else {
+        updateData[field] = value as any;
+      }
+    }
+  });
+  if (user.password && user.password.trim() !== '') {
+    updateData.password = await bcrypt.hash(
+      user.password,
+      Number(config.bcrypt_salt_round)
+    );
+  }
+  const updatedUser = await UsersModel.findByIdAndUpdate(
+    id,
+    { $set: updateData },
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+  if (!updatedUser) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User update failed', '');
+  }
+  return updatedUser;
+};
+
+export const getSingeUser = async (id: string): Promise<IUser | null> => {
+  const user = await UsersModel.findById(id).select('+password');
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found', '');
+  }
+  return user;
+};
+
+const deleteSingelUser = async (id: string): Promise<void> => {
+  const users = await UsersModel.findById(id);
+  if (!users) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found', '');
+  }
+  await UsersModel.findByIdAndDelete(id);
+};
+
+const groupUsersByInterests = async () => {
+  const pipeline: PipelineStage[] = [
+    { $unwind: { path: '$interests', preserveNullAndEmptyArrays: false } },
+    {
+      $group: {
+        _id: '$interests',
+        users: { $push: { _id: '$_id', name: '$name', email: '$email' } },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { count: -1 } },
+  ];
+  const result = await UsersModel.aggregate(pipeline);
+  return result;
+};
+
+const getUserPosts = async (userId: string) => {
+  const ObjectId = mongoose.Types.ObjectId;
+
+  const pipeline: PipelineStage[] = [
+    { $match: { _id: new ObjectId(userId) } },
+    {
+      $lookup: {
+        from: 'posts',
+        localField: '_id',
+        foreignField: 'user',
+        as: 'posts',
+      },
+    },
+    { $project: { _id: 1, name: 1, email: 1, posts: 1 } },
+  ];
+
+  const res = await UsersModel.aggregate(pipeline);
+  return res[0] || { posts: [] };
+};
+
+export const UserServices = {
+  createdUser,
+  userLogin,
+  getAllUser,
+  updateUser,
+  updateUserProfile,
+  getSingeUser,
+  deleteSingelUser,
+  groupUsersByInterests,
+  getUserPosts,
+};
