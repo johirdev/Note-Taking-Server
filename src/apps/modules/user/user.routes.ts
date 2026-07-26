@@ -24,7 +24,7 @@ router.delete(
 );
 router.get(
   '/singel-user/:id',
-  TokenRoleAccess(['user']),
+  TokenRoleAccess(['user', 'admin']),
   UserController.getSingelUser
 );
 router.patch(
@@ -44,10 +44,16 @@ router.get(
   TokenRoleAccess(['admin']),
   UserController.groupByInterests
 );
+// Get all note for a specific user (user or admin)
+router.get(
+  '/:id/notes',
+  TokenRoleAccess(['user', 'admin']),
+  UserController.getUserPosts
+);
 // Get all posts for a specific user (user or admin)
 router.get(
   '/:id/posts',
-  TokenRoleAccess(['user']),
+  TokenRoleAccess(['user', 'admin']),
   UserController.getUserPosts
 );
 

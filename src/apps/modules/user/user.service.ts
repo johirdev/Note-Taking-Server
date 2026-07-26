@@ -291,6 +291,24 @@ const groupUsersByInterests = async () => {
   return result;
 };
 
+const getUserNote = async (userId: string) => {
+  const ObjectId = mongoose.Types.ObjectId;
+  const pipeline: PipelineStage[] = [
+    { $match: { _id: new ObjectId(userId) } },
+    {
+      $lookup: {
+        from: 'note',
+        localField: '_id',
+        foreignField: 'user',
+        as: 'note',
+      },
+    },
+    { $project: { _id: 1, name: 1, email: 1, note: 1 } },
+  ];
+
+  const res = await UsersModel.aggregate(pipeline);
+  return res[0] || { note: [] };
+};
 const getUserPosts = async (userId: string) => {
   const ObjectId = mongoose.Types.ObjectId;
 
@@ -316,6 +334,7 @@ export const UserServices = {
   userLogin,
   getAllUser,
   updateUser,
+  getUserNote,
   updateUserProfile,
   getSingeUser,
   deleteSingelUser,

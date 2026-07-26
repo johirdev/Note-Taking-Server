@@ -107,6 +107,16 @@ const getSingelUser = catchAsync(async (req: Request, res: Response) => {
     message: 'Single user fetched successfully',
   });
 });
+const getUserNote = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await UserServices.getUserNote(id);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    data: result,
+    message: 'User Note retrieved',
+  });
+});
 const getUserPosts = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
   const result = await UserServices.getUserPosts(id);
@@ -125,6 +135,7 @@ export const UserController = {
   getSingelUser,
   AllUser,
   groupByInterests,
+  getUserNote,
   getUserPosts,
   updateSingleUser,
   updateUserProfile,
